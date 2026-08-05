@@ -1,9 +1,14 @@
 import type {
   AuthResponse,
+  Account,
   AccountResponse,
+  AccountBalance,
   AccountBalanceResponse,
+  AccountTransaction,
   AccountTransactionResponse,
   AccountDocumentsResponse,
+  ApiLinks,
+  ApiMeta,
 } from './types';
 import { InvestecApiError } from './errors';
 
@@ -14,6 +19,52 @@ const REQUEST_TIMEOUT_MS = 30_000;
 const createEndpoint = (host: string, path: string) =>
   new URL(path, host).toString();
 
+/** Raw wire shape from Mauritius accounts endpoints (extra nesting under data.accounts). */
+interface WireEnvelope<T> {
+  data?: {
+    accounts?: T;
+  };
+  links?: ApiLinks;
+  meta?: ApiMeta;
+}
+
+function normalizeAccountsResponse(
+  raw: WireEnvelope<{ accounts?: Account[] }>,
+): AccountResponse {
+  return {
+    data: {
+      accounts: raw.data?.accounts?.accounts ?? [],
+    },
+    ...(raw.links ? { links: raw.links } : {}),
+    ...(raw.meta ? { meta: raw.meta } : {}),
+  };
+}
+
+function normalizeBalanceResponse(
+  raw: WireEnvelope<{ balance?: AccountBalance }>,
+): AccountBalanceResponse {
+  const balance = raw.data?.accounts?.balance;
+  if (!balance) {
+    throw new Error('Unexpected balance response shape');
+  }
+  return {
+    data: balance,
+    ...(raw.links ? { links: raw.links } : {}),
+    ...(raw.meta ? { meta: raw.meta } : {}),
+  };
+}
+
+function normalizeTransactionsResponse(
+  raw: WireEnvelope<{ transactions?: AccountTransaction[] }>,
+): AccountTransactionResponse {
+  return {
+    data: {
+      transactions: raw.data?.accounts?.transactions ?? [],
+    },
+    ...(raw.links ? { links: raw.links } : {}),
+    ...(raw.meta ? { meta: raw.meta } : {}),
+  };
+}
 /**
  * Main API client for Investec Mauritius Open Banking API.
  * Handles authentication and provides methods for account, transaction, and document operations.
@@ -112,15 +163,19 @@ export class InvestecMauApi {
 
   /**
    * Retrieve all accounts for the authenticated user.
+   * Flattens the API's nested `data.accounts.accounts` into `data.accounts`.
    * @returns AccountResponse
    */
   async getAccounts(): Promise<AccountResponse> {
     const endpoint = createEndpoint(this.host, `/mu/pb/v1/accounts`);
-    return this.fetchGet<AccountResponse>(endpoint);
+    const raw =
+      await this.fetchGet<WireEnvelope<{ accounts?: Account[] }>>(endpoint);
+    return normalizeAccountsResponse(raw);
   }
 
   /**
    * Get the balance for a specific account.
+   * Flattens the API's nested `data.accounts.balance` into `data`.
    * @param accountId The account ID
    * @returns AccountBalanceResponse
    * @throws Error if accountId is missing or API call fails
@@ -135,11 +190,14 @@ export class InvestecMauApi {
       this.host,
       `/mu/pb/v1/accounts/${encodeURIComponent(String(accountId))}/balance`,
     );
-    return this.fetchGet<AccountBalanceResponse>(endpoint);
+    const raw =
+      await this.fetchGet<WireEnvelope<{ balance?: AccountBalance }>>(endpoint);
+    return normalizeBalanceResponse(raw);
   }
 
   /**
    * Get transactions for a specific account within a date range.
+   * Flattens the API's nested `data.accounts.transactions` into `data.transactions`.
    * @param accountId The account ID
    * @param fromDate Start date (YYYY-MM-DD)
    * @param toDate End date (YYYY-MM-DD)
@@ -167,7 +225,11 @@ export class InvestecMauApi {
         String(accountId),
       )}/transactions?${params.toString()}`,
     );
-    return this.fetchGet<AccountTransactionResponse>(endpoint);
+    const raw =
+      await this.fetchGet<
+        WireEnvelope<{ transactions?: AccountTransaction[] }>
+      >(endpoint);
+    return normalizeTransactionsResponse(raw);
   }
 
   /**

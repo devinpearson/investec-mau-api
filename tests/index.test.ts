@@ -182,21 +182,23 @@ describe('InvestecMauApi', () => {
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 
-  test('getAccounts uses bearer token and correct path', async () => {
+  test('getAccounts flattens nested data.accounts.accounts', async () => {
     const fetchMock = setupFetch(
       jsonResponse(authResponse()),
       jsonResponse({
         data: {
-          accounts: [
-            {
-              accountId: 5331,
-              accountNumber: '10101010101',
-              accountName: 'XYZ PTY LTD USD',
-              accountCurrency: 'USD',
-              profileId: 9633,
-              profileName: 'XYZ PTY LTD',
-            },
-          ],
+          accounts: {
+            accounts: [
+              {
+                accountId: 5331,
+                accountNumber: '10101010101',
+                accountName: 'XYZ PTY LTD USD',
+                accountCurrency: 'USD',
+                profileId: 9633,
+                profileName: 'XYZ PTY LTD',
+              },
+            ],
+          },
         },
         links: { self: `${HOST}/mu/pb/v1/accounts` },
         meta: { totalPages: 1 },
@@ -206,30 +208,41 @@ describe('InvestecMauApi', () => {
     const mau = new InvestecMauApi('id', 'secret', 'key', HOST);
     const accounts = await mau.getAccounts();
 
+    expect(accounts.data.accounts).toHaveLength(1);
     expect(accounts.data.accounts[0]?.accountId).toBe(5331);
+    expect(accounts.links?.self).toBe(`${HOST}/mu/pb/v1/accounts`);
+    expect(accounts.meta?.totalPages).toBe(1);
+    // Nested wire shape must not leak to consumers
+    expect(
+      (accounts.data.accounts as unknown as { accounts?: unknown }).accounts,
+    ).toBeUndefined();
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const [url, init] = fetchMock.mock.calls[1]!;
     expect(url).toBe(`${HOST}/mu/pb/v1/accounts`);
     expect(init.headers.Authorization).toBe('Bearer test-token');
   });
 
-  test('getAccountBalances encodes accountId and returns balance', async () => {
+  test('getAccountBalances flattens nested data.accounts.balance', async () => {
     const fetchMock = setupFetch(
       jsonResponse(authResponse()),
       jsonResponse({
         data: {
-          accountNumber: '10101010101',
-          accountType: 'CALL DEPOSIT',
-          accountShortName: 'XYZ PTY LTD',
-          balance: 1043966.3,
-          availableBalance: 635506.65,
-          encumbrances: 152139.76,
-          currency: 'USD',
-          debitInterestRate: 0,
-          creditInterestRate: 1.1375,
-          creditInterestAccrued: 465.19,
-          debitInterestAccrued: 0,
-          overDraftLimit: 0,
+          accounts: {
+            balance: {
+              accountNumber: '10101010101',
+              accountType: 'CALL DEPOSIT',
+              accountShortName: 'XYZ PTY LTD',
+              balance: 1043966.3,
+              availableBalance: 635506.65,
+              encumbrances: 152139.76,
+              currency: 'USD',
+              debitInterestRate: 0,
+              creditInterestRate: 1.1375,
+              creditInterestAccrued: 465.19,
+              debitInterestAccrued: 0,
+              overDraftLimit: 0,
+            },
+          },
         },
       }),
     );
@@ -244,23 +257,25 @@ describe('InvestecMauApi', () => {
     );
   });
 
-  test('getAccountTransactions requires date filters', async () => {
+  test('getAccountTransactions flattens nested data.accounts.transactions', async () => {
     const fetchMock = setupFetch(
       jsonResponse(authResponse()),
       jsonResponse({
         data: {
-          transactions: [
-            {
-              description: 'Wages',
-              creditAmount: 0,
-              debitAmount: 535,
-              transactionDate: '2024-02-12',
-              postDate: '2024-02-12',
-              bankReference: 'Payment to XYZ LTD',
-              amount: 535,
-              runningBalance: 9000.76,
-            },
-          ],
+          accounts: {
+            transactions: [
+              {
+                description: 'Wages',
+                creditAmount: 0,
+                debitAmount: 535,
+                transactionDate: '2024-02-12',
+                postDate: '2024-02-12',
+                bankReference: 'Payment to XYZ LTD',
+                amount: 535,
+                runningBalance: 9000.76,
+              },
+            ],
+          },
         },
       }),
     );
@@ -327,13 +342,16 @@ describe('InvestecMauApi', () => {
   });
 
   test('reuses token until near expiry then refreshes', async () => {
+    const emptyAccounts = {
+      data: { accounts: { accounts: [] as unknown[] } },
+    };
     const fetchMock = setupFetch(
       jsonResponse(authResponse(3600)),
-      jsonResponse({ data: { accounts: [] } }),
-      jsonResponse({ data: { accounts: [] } }),
+      jsonResponse(emptyAccounts),
+      jsonResponse(emptyAccounts),
       jsonResponse(authResponse(0)),
       jsonResponse(authResponse(3600)),
-      jsonResponse({ data: { accounts: [] } }),
+      jsonResponse(emptyAccounts),
     );
 
     const mau = new InvestecMauApi('id', 'secret', 'key', HOST);
@@ -359,7 +377,9 @@ describe('InvestecMauApi', () => {
       if (String(url).includes('/oauth2/token')) {
         return authPending;
       }
-      return Promise.resolve(jsonResponse({ data: { accounts: [] } }));
+      return Promise.resolve(
+        jsonResponse({ data: { accounts: { accounts: [] } } }),
+      );
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -381,7 +401,7 @@ describe('InvestecMauApi', () => {
       jsonResponse(authResponse(3600, 'old-token')),
       jsonResponse({ message: 'expired' }, 401),
       jsonResponse(authResponse(3600, 'fresh-token')),
-      jsonResponse({ data: { accounts: [] } }),
+      jsonResponse({ data: { accounts: { accounts: [] } } }),
     );
 
     const mau = new InvestecMauApi('id', 'secret', 'key', HOST);
