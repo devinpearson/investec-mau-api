@@ -1,17 +1,19 @@
+export { InvestecApiError, InvestecValidationError } from './errors';
+export {
+  InvestecMauApi,
+  type InvestecMauApiOptions,
+} from './investec-mau-api';
 export type {
-  AuthResponse,
   Account,
-  AccountResponse,
   AccountBalance,
   AccountBalanceResponse,
-  AccountTransactionResponse,
-  AccountTransaction,
-  DocumentInformation,
-  AvailableDocuments,
   AccountDocumentsResponse,
+  AccountResponse,
+  AccountTransaction,
+  AccountTransactionResponse,
   ApiLinks,
   ApiMeta,
+  AuthResponse,
+  AvailableDocuments,
+  DocumentInformation,
 } from './types';
-
-export { InvestecApiError } from './errors';
-export { InvestecMauApi } from './investec-mau-api';
