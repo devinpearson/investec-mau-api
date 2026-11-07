@@ -32,16 +32,27 @@ npm install investec-mau-api
 ```typescript
 import { InvestecMauApi } from 'investec-mau-api';
 
-const mau = new InvestecMauApi('<clientId>', '<clientSecret>', '<apiKey>');
+const mau = new InvestecMauApi({
+  clientId: '<clientId>',
+  clientSecret: '<clientSecret>',
+  apiKey: '<apiKey>',
+});
 
-// Optional: use the Investec sandbox host
-// const mau = new InvestecMauApi(
-//   '<clientId>',
-//   '<clientSecret>',
-//   '<apiKey>',
-//   'https://openapisandbox.investec.com',
-// );
+// The positional form still works:
+// new InvestecMauApi('<clientId>', '<clientSecret>', '<apiKey>', host);
 ```
+
+All options:
+
+| Option         | Default                        | What it does                                                                                              |
+| -------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `host`         | `https://openapi.investec.com` | API host. Use `https://openapisandbox.investec.com` for the sandbox. A path prefix (for a proxy) is kept. |
+| `fetch`        | global `fetch`                 | Your own fetch, for proxies, logging or tests.                                                            |
+| `timeoutMs`    | `30000`                        | Per-request timeout.                                                                                      |
+| `retries`      | `0`                            | Retries for requests that fail with 429, 500, 502, 503, 504 or a network error. The token request is never retried. |
+| `retryDelayMs` | `500`                          | First retry delay, doubled each attempt. A 429's `Retry-After` is used when present. Capped at 30 s.      |
+
+The client uses only `fetch`, `btoa` and `AbortSignal`, so it runs on Node 22+, Bun, Deno and edge runtimes.
 
 ### Fetch Accounts
 
@@ -94,16 +105,18 @@ All methods are fully typed. See the [src/types.ts](src/types.ts) file for detai
 
 ### Error Handling
 
-API failures throw `InvestecApiError` with `status`, `endpoint`, and optional `body`. Validation failures throw a plain `Error`. Use try/catch to handle errors:
+API failures throw `InvestecApiError` with `status`, `endpoint`, and optional `body`. A missing argument throws `InvestecValidationError` before any request is sent; its `parameter` names the argument.
 
 ```typescript
-import { InvestecApiError } from 'investec-mau-api';
+import { InvestecApiError, InvestecValidationError } from 'investec-mau-api';
 
 try {
   const accounts = await mau.getAccounts();
 } catch (err) {
   if (err instanceof InvestecApiError) {
     console.error(err.status, err.endpoint, err.body);
+  } else if (err instanceof InvestecValidationError) {
+    console.error('Bad argument:', err.parameter);
   } else {
     console.error('API error:', err);
   }
@@ -214,7 +227,7 @@ import { InvestecApiError } from 'investec-mau-api';
 ## Troubleshooting
 
 - Ensure your API credentials are correct and have the required scopes (`accounts`, `transactions`, `balances`, `documents.statements` as needed).
-- The package requires Node.js 18+ (for fetch and AbortController support).
+- The package requires Node.js 22+ (older lines are end-of-life and untested).
 - If you see authentication errors, check your client ID, secret, and API key.
 
 ## Example Usage
@@ -261,6 +274,15 @@ Runnable examples live in [`examples/`](examples/). See [`examples/README.md`](e
 > Tip: Prefer the sandbox host while experimenting. Sandbox credentials are documented in the Investec Mauritius Open Banking OpenAPI spec.
 
 ---
+
+## Development
+
+| Command                 | What it does                                            |
+| ----------------------- | ------------------------------------------------------- |
+| `npm test`              | Unit tests (mocked `fetch`)                             |
+| `npm run test:mutation` | Stryker mutation testing; report in `reports/mutation/` |
+| `npm run lint`          | Biome lint + format check (`npm run lint:fix` to fix)   |
+| `npm run ci`            | Build, typecheck, lint and check package exports        |
 
 ## License
 

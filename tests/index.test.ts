@@ -157,7 +157,7 @@ describe('InvestecMauApi', () => {
     expect(init.body).toBe('grant_type=client_credentials');
     expect(init.headers['x-api-key']).toBe('key');
     expect(init.headers.Authorization).toBe(
-      'Basic ' + Buffer.from('id:secret').toString('base64'),
+      `Basic ${Buffer.from('id:secret').toString('base64')}`,
     );
   });
 

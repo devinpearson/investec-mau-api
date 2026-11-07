@@ -22,5 +22,5 @@ export function createClientFromEnv(): InvestecMauApi {
   const apiKey = requireEnv('INVESTEC_API_KEY');
   const host = process.env.INVESTEC_HOST ?? 'https://openapi.investec.com';
 
-  return new InvestecMauApi(clientId, clientSecret, apiKey, host);
+  return new InvestecMauApi({ clientId, clientSecret, apiKey, host });
 }

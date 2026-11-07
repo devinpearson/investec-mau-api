@@ -15,7 +15,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [18.x, 20.x, 22.x, 24.x]
+        node-version: [22.x, 24.x]
         # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
 
     steps:
@@ -28,3 +28,20 @@ jobs:
       - run: npm ci
       - run: npm run ci
       - run: npm test
+
+  mutation:
+    name: Mutation testing (Stryker)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run test:mutation
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutation-report
+          path: reports/mutation/

@@ -24,3 +24,17 @@ export class InvestecApiError extends Error {
     this.body = body;
   }
 }
+
+/**
+ * Error thrown before any request is sent, when a method is called with a
+ * missing or invalid argument. `parameter` names the offending argument.
+ */
+export class InvestecValidationError extends Error {
+  readonly parameter: string;
+
+  constructor(parameter: string, message?: string) {
+    super(message ?? `Missing required parameters: ${parameter}`);
+    this.name = 'InvestecValidationError';
+    this.parameter = parameter;
+  }
+}
